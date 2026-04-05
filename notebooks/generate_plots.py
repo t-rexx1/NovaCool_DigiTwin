@@ -257,10 +257,10 @@ print("  Saved: writeup/fig4_control_comparison.png")
 
 # Task 4 comparison table 
 print("\n=== Task 4 Performance Comparison ===")
-it_b = results_baseline["total_it_kw"].sum() / 60
-it_h = results_heuristic["total_it_kw"].sum() / 60
-cool_b = results_baseline["total_cooling_kw"].sum() / 60
-cool_h = results_heuristic["total_cooling_kw"].sum() / 60
+it_b_mwh   = results_baseline["total_it_kw"].sum() / 60 / 1000
+it_h_mwh   = results_heuristic["total_it_kw"].sum() / 60 / 1000
+cool_b_mwh = results_baseline["total_cooling_kw"].sum() / 60 / 1000
+cool_h_mwh = results_heuristic["total_cooling_kw"].sum() / 60 / 1000
 pue_b = results_baseline["pue"].mean()
 pue_h = results_heuristic["pue"].mean()
 viol_b = results_baseline["n_violations"].sum()
@@ -268,9 +268,9 @@ viol_h = results_heuristic["n_violations"].sum()
 
 print(f"{'Metric':<35} {'Baseline':>12} {'Heuristic':>12}")
 print("-" * 60)
-print(f"{'Total IT Load Served (MWh)':<35} {it_b:>12.2f} {it_h:>12.2f}")
+print(f"{'Total IT Load Served (MWh)':<35} {it_b_mwh:>12.2f} {it_h_mwh:>12.2f}")
 print(f"{'Thermal Violations':<35} {viol_b:>12} {viol_h:>12}")
-print(f"{'Total Cooling Energy (MWh)':<35} {cool_b:>12.2f} {cool_h:>12.2f}")
+print(f"{'Total Cooling Energy (MWh)':<35} {cool_b_mwh:>12.2f} {cool_h_mwh:>12.2f}")
 print(f"{'Mean PUE':<35} {pue_b:>12.3f} {pue_h:>12.3f}")
 pue_improvement = (pue_b - pue_h) / pue_b * 100
 print(f"{'PUE Improvement (%)':<35} {'—':>12} {pue_improvement:>11.1f}%")
