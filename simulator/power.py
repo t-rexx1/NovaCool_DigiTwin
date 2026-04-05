@@ -89,7 +89,7 @@ class PowerModel:
         eta = self.ups_efficiency(it_load_kw)
         ups_input_kw = it_load_kw / max(eta, 0.1)
 
-        # Fan power: cube law (doubling airflow -> 8x power)
+        # Fan power: cube law (doubling airflow --> means 8x power)
         fan_power_kw = (
             self.cfg.fan_rated_kw_per_crah
             * np.sum(crah_fan_fracs ** 3)
