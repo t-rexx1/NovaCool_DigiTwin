@@ -26,7 +26,8 @@ class ThermalConfig:
     racks_per_crah: int = 50          # 4 rows x 50 racks, one CRAH per row
 
     # Air properties
-    mdot_air_per_rack: float = 0.36   # kg/s (rho=1.2 kg/m3  x  Vdot=0.3 m3/s)
+    # OLD--> mdot_air_per_rack: float = 0.36   # kg/s (rho=1.2 kg/m3  x  Vdot=0.3 m3/s)
+    mdot_air_per_rack: float = 1.5    # From back calculation, 2nd iteration
     cp_air: float = 1006.0            # J/(kg.K)
 
     # CRAH defaults
