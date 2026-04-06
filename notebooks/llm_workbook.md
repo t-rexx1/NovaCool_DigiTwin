@@ -23,7 +23,7 @@ mdot = Q / (cp * dT) = 45,000 / (1006 * 28.5) ~ 1.57 kg/s
 
 Set to 1.5 kg/s (conservative, within ASHRAE A2 envelope for high-density racks where Vdot ~ 1.25 m3/s). This reduced peak outlet from 132 degC to 38.3 degC with 0 violations, which is physically correct.
 
-**Lesson:** The LLM gave a plausible-sounding but wrong parameter. Physics caught it immediately. Always validate model parameters against actual outputs.
+**Lesson:** The LLM gave a parameter that sounds correct but is actually wrong. Physics caught it immediately. So we need to alwayss validate model parameters against actual outputs.
 
 ---
 
@@ -91,6 +91,6 @@ The dead-band thermostat is purely reactive - it raises supply temperature durin
 **Why this validates the RL motivation:**
 A trained RL agent observing time of day in its observation vector could learn to preemptively lower supply temperature before the 05:00 ramp.
 
-This is the core value proposition and advantage of the DataCenterEnv - to be able to use agents that are predictive and not just reactive.
+This is the core value proposition and advantage of the DataCenterEnv. That is to be able to use agents that are predictive and not just reactive.
 
 **This finding is left in the results intentionally** - to represent true analysis
