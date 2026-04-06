@@ -1,6 +1,8 @@
 """
-This generates all 4 plots.
+This generates all 4 (see edit, now 5) plots.
 Run from repo root: python notebooks/generate_plots.py
+
+Edit: Added 1 more plot for CRAH failure perturbation (stretch goal) at the end of the script.
 """
 
 import sys
@@ -274,4 +276,99 @@ print(f"{'Total Cooling Energy (MWh)':<35} {cool_b_mwh:>12.2f} {cool_h_mwh:>12.2
 print(f"{'Mean PUE':<35} {pue_b:>12.3f} {pue_h:>12.3f}")
 pue_improvement = (pue_b - pue_h) / pue_b * 100
 print(f"{'PUE Improvement (%)':<35} {'—':>12} {pue_improvement:>11.1f}%")
-print(f"\nAll 4 figures saved to writeup/")
+print(f"\nAll 5 figures saved to writeup/")
+
+
+# Fig 5: CRAH Failure Perturbation (Stretch Goal) 
+print("Generating Fig 5 CRAH failure perturbation...")
+
+# Simulate CRAH 0 failing from t=300 to t=480 (05:00–08:00)
+# During failure: CRAH 0 fan drops to 0, supply temp rises to ambient
+FAIL_START, FAIL_END = 300, 480
+
+shape = (facility.N_STEPS, 4)
+T_supply_fail = np.full(shape, 7.0)
+fan_fail       = np.ones(shape)
+
+# Injecting failure: CRAH 0 loses cooling capacity
+T_supply_fail[FAIL_START:FAIL_END, 0] = 35.0  # supply warms to hot aisle return
+fan_fail[FAIL_START:FAIL_END, 0]       = 0.3   # fans at minimum
+
+results_fail = facility.run(T_supply_fail, fan_fail)
+
+# Heuristic response to failure
+heuristic_fail = ThermostatController()
+h_supply_fail = np.full(shape, 7.0)
+h_fan_fail    = np.ones(shape)
+h_supply_fail[FAIL_START:FAIL_END, 0] = 35.0
+h_fan_fail[FAIL_START:FAIL_END, 0]    = 0.3
+h_s, h_f = heuristic_fail.run_episode(
+    type('obj', (object,), {
+        'workload': facility.workload,
+        'N_STEPS': facility.N_STEPS,
+        'thermal': facility.thermal,
+    })()
+)
+# Override failed CRAH
+h_s[FAIL_START:FAIL_END, 0] = 35.0
+h_f[FAIL_START:FAIL_END, 0] = 0.3
+results_fail_heuristic = facility.run(h_s, h_f)
+
+fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+fig.suptitle(
+    "Stretch Goal: CRAH 0 Failure Injection (05:00–08:00)\n"
+    "Baseline vs Heuristic Response",
+    fontsize=13, fontweight="bold"
+)
+
+ax = axes[0]
+ax.axvspan(FAIL_START/60, FAIL_END/60, alpha=0.15, color="red",
+           label="CRAH 0 failure window")
+ax.plot(t_hours, results_baseline["peak_outlet_c"],
+        color="gray", linewidth=1, linestyle="--", alpha=0.6,
+        label="No failure (baseline)")
+ax.plot(t_hours, results_fail["peak_outlet_c"],
+        color="#F44336", linewidth=1.5,
+        label="Fixed setpoint — failure")
+ax.plot(t_hours, results_fail_heuristic["peak_outlet_c"],
+        color="#2196F3", linewidth=1.5,
+        label="Heuristic — failure response")
+ax.axhline(40.0, color="red", linestyle="-", linewidth=2,
+           alpha=0.5, label="Hard limit (40°C)")
+ax.set_ylabel("Peak Outlet Temp (°C)")
+ax.set_title("(a) Thermal Response to CRAH 0 Failure")
+ax.legend(loc="upper right", fontsize=9)
+ax.set_ylim(0, 55)
+
+ax = axes[1]
+ax.axvspan(FAIL_START/60, FAIL_END/60, alpha=0.15, color="red")
+ax.plot(t_hours, results_baseline["pue"],
+        color="gray", linewidth=1, linestyle="--", alpha=0.6,
+        label="No failure (baseline)")
+ax.plot(t_hours, results_fail["pue"],
+        color="#F44336", linewidth=1.5, label="Fixed setpoint — failure")
+ax.plot(t_hours, results_fail_heuristic["pue"],
+        color="#2196F3", linewidth=1.5, label="Heuristic — failure response")
+ax.set_ylabel("PUE (-)")
+ax.set_xlabel("Time of Day (hours)")
+ax.set_title("(b) PUE Impact During CRAH Failure")
+ax.legend(loc="upper right", fontsize=9)
+ax.set_ylim(1.0, 2.0)
+ax.set_xlim(0, 24)
+ax.set_xticks(range(0, 25, 2))
+
+plt.tight_layout()
+plt.savefig(OUT / "fig5_crah_failure.png", dpi=150, bbox_inches="tight")
+plt.close()
+
+# Print failure stats
+viol_fail = results_fail["n_violations"].sum()
+viol_fail_h = results_fail_heuristic["n_violations"].sum()
+peak_fail = results_fail["peak_outlet_c"].max()
+peak_fail_h = results_fail_heuristic["peak_outlet_c"].max()
+print(f"\n=== CRAH Failure Results ===")
+print(f"{'Metric':<35} {'Fixed':>10} {'Heuristic':>10}")
+print("-" * 56)
+print(f"{'Thermal violations':<35} {viol_fail:>10} {viol_fail_h:>10}")
+print(f"{'Peak outlet temp (°C)':<35} {peak_fail:>10.2f} {peak_fail_h:>10.2f}")
+print("  Saved: writeup/fig5_crah_failure.png")

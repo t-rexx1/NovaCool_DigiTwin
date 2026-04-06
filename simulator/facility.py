@@ -105,9 +105,10 @@ class NovaCoolFacility:
         self,
         crah_supply_temps: Optional[np.ndarray] = None,
         crah_fan_fracs: Optional[np.ndarray] = None,
+        sensor_noise_std: float = 0.0,   #EDIT:  Adds sensor noise for stochasticity to simulation as part of stretch goal...
     ) -> pd.DataFrame:
         """
-        Runs the full 24-hour simulation.
+        Runs the full 24 hr simulation.
 
         Parameters
         ----------
@@ -131,6 +132,10 @@ class NovaCoolFacility:
         for t in range(self.N_STEPS):
             rack_power = self.workload[t]   # (200,)
             th = self.thermal.step(rack_power, T_supply[t], fan_f[t])
+            # EDit: Add sensor noise (stochastic simulation)
+            if sensor_noise_std > 0:
+                noise = np.random.normal(0, sensor_noise_std, th["outlet_temp_c"].shape)
+                th["outlet_temp_c"] = th["outlet_temp_c"] + noise
             pw = self.power.step(rack_power.sum(), th["crah_cooling_kw"], fan_f[t])
 
             records.append({
