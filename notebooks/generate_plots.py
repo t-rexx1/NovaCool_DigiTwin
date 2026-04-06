@@ -331,7 +331,7 @@ ax.plot(t_hours, results_fail["peak_outlet_c"],
         color="#F44336", linewidth=1.5,
         label="Fixed setpoint — failure")
 ax.plot(t_hours, results_fail_heuristic["peak_outlet_c"],
-        color="#2196F3", linewidth=1.5,
+        color="#2196F3", linewidth=2.0, linestyle="--",
         label="Heuristic — failure response")
 ax.axhline(40.0, color="red", linestyle="-", linewidth=2,
            alpha=0.5, label="Hard limit (40°C)")
