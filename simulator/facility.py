@@ -25,10 +25,10 @@ def load_workload(csv_path: Union[str, Path]) -> np.ndarray:
         index="timestamp", columns="rack_id", values="power_kw"
     )
     pivoted = pivoted.sort_index().sort_index(axis=1)
-    assert pivoted.shape == (1440, 200), (
-        f"Expected (1440, 200) workload, got {pivoted.shape}"
+    assert pivoted.shape[0] == 1440, (
+        f"Expected 1440 timesteps, got {pivoted.shape[0]}"
     )
-    return pivoted.values.astype(np.float64)  # (1440, 200)
+    return pivoted.values.astype(np.float64)  # (1440, n_racks)
 
 
 def load_sensor_reference(csv_path: Union[str, Path]) -> pd.DataFrame:
@@ -61,10 +61,15 @@ class NovaCoolFacility:
         thermal_config: Optional[ThermalConfig] = None,
         power_config: Optional[PowerConfig] = None,
     ):
-        assert workload.shape == (self.N_STEPS, 200), (
-            f"Workload must be (1440, 200), got {workload.shape}"
+        assert workload.shape[0] == self.N_STEPS, (
+            f"Workload must have 1440 timesteps, got {workload.shape[0]}"
         )
         self.workload = workload
+        n_racks = workload.shape[1]
+        if thermal_config is None:
+            thermal_config = ThermalConfig(n_racks=n_racks)
+        elif thermal_config.n_racks != n_racks:
+            thermal_config.n_racks = n_racks
         self.thermal = ThermalModel(thermal_config)
         self.power = PowerModel(power_config)
 

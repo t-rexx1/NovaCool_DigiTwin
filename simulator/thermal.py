@@ -21,9 +21,13 @@ from typing import Optional
 @dataclass
 class ThermalConfig:
     """Physical parameters for NovaCool facility thermal model"""
-    n_racks: int = 200
+    n_racks: int = 2000
     n_crahs: int = 4
-    racks_per_crah: int = 50          # 4 rows x 50 racks, one CRAH per row
+
+    @property
+    def racks_per_crah(self) -> int:
+        """Derived automatically - change n_racks or n_crahs to scale."""
+        return self.n_racks // self.n_crahs
 
     # Air properties
     # OLD--> mdot_air_per_rack: float = 0.36   # kg/s (rho=1.2 kg/m3  x  Vdot=0.3 m3/s)

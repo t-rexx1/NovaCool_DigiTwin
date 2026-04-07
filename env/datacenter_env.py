@@ -46,10 +46,6 @@ class DataCenterEnv:
     Does NOT inherit from gym.Env to avoid the gymnasium dependency (same interface, zero extra deps)
     """
 
-    # Space dimensions 
-    OBS_DIM = 13
-    ACT_DIM = 8
-
     # Reward wts.
     W_THROUGHPUT = 0.005    # per kW of IT load served
     W_VIOLATION  = 100.0   # per degC above 40 (squared penalty)
@@ -76,10 +72,18 @@ class DataCenterEnv:
         self.facility = facility
         self.rng = np.random.default_rng(seed)
 
+        # Derive dims from facility config so they scale with n_racks/n_crahs
+        self.n_crahs = facility.thermal.cfg.n_crahs
+        self.n_racks = facility.thermal.cfg.n_racks
+        # 5 scalar obs + supply temp per CRAH + fan frac per CRAH
+        self.OBS_DIM = 5 + 2 * self.n_crahs
+        # delta supply temp + delta fan frac, one per CRAH
+        self.ACT_DIM = 2 * self.n_crahs
+
         # Episode state
         self._t: int = 0
-        self._crah_supply = np.full(4, 7.0)
-        self._crah_fans   = np.ones(4)
+        self._crah_supply = np.full(self.n_crahs, 7.0)
+        self._crah_fans   = np.ones(self.n_crahs)
         self._last_th: Optional[dict] = None
         self._last_pw: Optional[dict] = None
 
@@ -93,8 +97,8 @@ class DataCenterEnv:
         Returns initial observation.
         """
         self._t = 0
-        self._crah_supply = np.full(4, 7.0)
-        self._crah_fans   = np.ones(4)
+        self._crah_supply = np.full(self.n_crahs, 7.0)
+        self._crah_fans   = np.ones(self.n_crahs)
         self._last_th     = None
         self._last_pw     = None
         return self._get_obs()
@@ -122,8 +126,8 @@ class DataCenterEnv:
         )
 
         # applying action deltas
-        delta_temp = np.clip(action[:4], -self.DELTA_TEMP_MAX, self.DELTA_TEMP_MAX)
-        delta_fan  = np.clip(action[4:], -self.DELTA_FAN_MAX,  self.DELTA_FAN_MAX)
+        delta_temp = np.clip(action[:self.n_crahs], -self.DELTA_TEMP_MAX, self.DELTA_TEMP_MAX)
+        delta_fan  = np.clip(action[self.n_crahs:], -self.DELTA_FAN_MAX,  self.DELTA_FAN_MAX)
 
         self._crah_supply = np.clip(
             self._crah_supply + delta_temp,
@@ -219,7 +223,7 @@ class DataCenterEnv:
             th["inlet_temp_c"].mean() / 20.0,
             th["hot_aisle_temp_c"].mean() / 50.0,
             th["outlet_temp_c"].max() / 50.0,
-            it_load_kw / 10_000.0,
+            it_load_kw / (self.n_racks * 50.0),
             self._t / self.facility.N_STEPS,
             *self._crah_supply / 20.0,
             *self._crah_fans,
@@ -230,26 +234,18 @@ class DataCenterEnv:
     @property
     def observation_space(self) -> dict:
         """Observation space metadata for RL engineers/team"""
+        labels = (
+            ["avg_cold_aisle_temp_norm", "avg_hot_aisle_temp_norm",
+             "max_outlet_temp_norm", "total_it_load_norm", "time_of_day_norm"]
+            + [f"crah{i+1}_supply_temp_norm" for i in range(self.n_crahs)]
+            + [f"crah{i+1}_fan_frac"         for i in range(self.n_crahs)]
+        )
         return {
             "shape": (self.OBS_DIM,),
             "low":   np.zeros(self.OBS_DIM),
             "high":  np.ones(self.OBS_DIM),
             "dtype": np.float64,
-            "labels": [
-                "avg_cold_aisle_temp_norm",
-                "avg_hot_aisle_temp_norm",
-                "max_outlet_temp_norm",
-                "total_it_load_norm",
-                "time_of_day_norm",
-                "crah1_supply_temp_norm",
-                "crah2_supply_temp_norm",
-                "crah3_supply_temp_norm",
-                "crah4_supply_temp_norm",
-                "crah1_fan_frac",
-                "crah2_fan_frac",
-                "crah3_fan_frac",
-                "crah4_fan_frac",
-            ],
+            "labels": labels,
         }
 
     @property
@@ -257,19 +253,13 @@ class DataCenterEnv:
         """Action space metadata for RL engineers or team"""
         return {
             "shape": (self.ACT_DIM,),
-            "low":   np.array([-self.DELTA_TEMP_MAX]*4 + [-self.DELTA_FAN_MAX]*4),
-            "high":  np.array([ self.DELTA_TEMP_MAX]*4 + [ self.DELTA_FAN_MAX]*4),
+            "low":   np.array([-self.DELTA_TEMP_MAX]*self.n_crahs + [-self.DELTA_FAN_MAX]*self.n_crahs),
+            "high":  np.array([ self.DELTA_TEMP_MAX]*self.n_crahs + [ self.DELTA_FAN_MAX]*self.n_crahs),
             "dtype": np.float64,
-            "labels": [
-                "delta_supply_temp_crah1",
-                "delta_supply_temp_crah2",
-                "delta_supply_temp_crah3",
-                "delta_supply_temp_crah4",
-                "delta_fan_frac_crah1",
-                "delta_fan_frac_crah2",
-                "delta_fan_frac_crah3",
-                "delta_fan_frac_crah4",
-            ],
+            "labels": (
+                [f"delta_supply_temp_crah{i+1}" for i in range(self.n_crahs)]
+                + [f"delta_fan_frac_crah{i+1}"  for i in range(self.n_crahs)]
+            ),
         }
 
     def __repr__(self) -> str:

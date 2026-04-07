@@ -22,7 +22,7 @@ class TestThermalModel:
 
     def test_zero_power_outlet_equals_inlet(self):
         """With no IT load, outlet equals inlet ideally (+ recirculation)."""
-        rack_power = np.zeros(200)
+        rack_power = np.zeros(self.model.cfg.n_racks)
         result = self.model.step(rack_power, self.supply, self.fans)
         expected_inlet = 7.0 + self.model.cfg.recirculation_factor
         np.testing.assert_allclose(
@@ -31,32 +31,34 @@ class TestThermalModel:
 
     def test_outlet_always_greater_than_inlet(self):
         """Outlet must always be >= inlet (since heat flows from server to air)."""
-        rack_power = np.random.uniform(5, 45, 200)
+        rack_power = np.random.uniform(5, 45, self.model.cfg.n_racks)
         result = self.model.step(rack_power, self.supply, self.fans)
         assert np.all(result["outlet_temp_c"] >= result["inlet_temp_c"])
 
     def test_higher_power_higher_outlet(self):
         """Doubling power should raise outlet temp."""
-        low_power  = np.full(200, 10.0)
-        high_power = np.full(200, 20.0)
+        low_power  = np.full(self.model.cfg.n_racks, 10.0)
+        high_power = np.full(self.model.cfg.n_racks, 20.0)
         r_low  = self.model.step(low_power,  self.supply, self.fans)
         r_high = self.model.step(high_power, self.supply, self.fans)
         assert np.all(r_high["outlet_temp_c"] > r_low["outlet_temp_c"])
 
     def test_lower_supply_temp_lower_outlet(self):
         """Colder supply air should reduce outlet temp."""
-        rack_power = np.full(200, 30.0)
+        rack_power = np.full(self.model.cfg.n_racks, 30.0)
         r_warm = self.model.step(rack_power, np.full(4, 15.0), self.fans)
         r_cold = self.model.step(rack_power, np.full(4,  7.0), self.fans)
         assert np.all(r_cold["outlet_temp_c"] < r_warm["outlet_temp_c"])
 
     def test_output_shapes(self):
         """All output arrays must have the correct shapes."""
-        result = self.model.step(np.full(200, 20.0), self.supply, self.fans)
-        assert result["inlet_temp_c"].shape  == (200,)
-        assert result["outlet_temp_c"].shape == (200,)
-        assert result["hot_aisle_temp_c"].shape  == (4,)
-        assert result["crah_cooling_kw"].shape   == (4,)
+        n = self.model.cfg.n_racks
+        c = self.model.cfg.n_crahs
+        result = self.model.step(np.full(n, 20.0), self.supply, self.fans)
+        assert result["inlet_temp_c"].shape      == (n,)
+        assert result["outlet_temp_c"].shape     == (n,)
+        assert result["hot_aisle_temp_c"].shape  == (c,)
+        assert result["crah_cooling_kw"].shape   == (c,)
 
     def test_energy_conservation(self):
         """
@@ -68,10 +70,10 @@ class TestThermalModel:
         Q_recirculation = n_racks * mdot * cp * recirculation_factor
                         = 200 * 1.5 * 1006 * 1.5 / 1000 = 452ish kW
         """
-        rack_power_kw = np.full(200, 25.0)
+        rack_power_kw = np.full(self.model.cfg.n_racks, 25.0)
         result = self.model.step(rack_power_kw, self.supply, self.fans)
 
-        Q_gen_kw     = rack_power_kw.sum()        # 5000 kW IT load
+        Q_gen_kw     = rack_power_kw.sum()
         Q_removed_kw = result["crah_cooling_kw"].sum()
 
         # CRAHs must remove at least the IT heat
@@ -134,13 +136,13 @@ class TestDataCenterEnv:
 
     def test_reset_returns_correct_shape(self):
         obs = self.env.reset()
-        assert obs.shape == (DataCenterEnv.OBS_DIM,)
+        assert obs.shape == (self.env.OBS_DIM,)
 
     def test_step_returns_correct_types(self):
         self.env.reset()
-        action = np.zeros(DataCenterEnv.ACT_DIM)
+        action = np.zeros(self.env.ACT_DIM)
         obs, reward, done, info = self.env.step(action)
-        assert obs.shape == (DataCenterEnv.OBS_DIM,)
+        assert obs.shape == (self.env.OBS_DIM,)
         assert isinstance(reward, float)
         assert isinstance(done, bool)
         assert isinstance(info, dict)
@@ -148,7 +150,7 @@ class TestDataCenterEnv:
     def test_episode_ends_at_1440(self):
         """Episode must terminate exactly at t=1440."""
         self.env.reset()
-        action = np.zeros(DataCenterEnv.ACT_DIM)
+        action = np.zeros(self.env.ACT_DIM)
         done = False
         steps = 0
         while not done:
@@ -159,7 +161,7 @@ class TestDataCenterEnv:
     def test_obs_normalised(self):
         """All observation values should be in approximately [0, 1]."""
         self.env.reset()
-        action = np.zeros(DataCenterEnv.ACT_DIM)
+        action = np.zeros(self.env.ACT_DIM)
         for _ in range(10):
             obs, _, done, _ = self.env.step(action)
             assert np.all(obs >= -0.1), f"Obs below 0: {obs}"
@@ -173,7 +175,8 @@ class TestDataCenterEnv:
         """
         self.env.reset()
         # Push supply temp up by maximum delta every step
-        action = np.array([2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0])
+        n = self.env.n_crahs
+        action = np.array([2.0]*n + [0.0]*n)
         total_reward = 0.0
         for _ in range(100):
             _, reward, done, info = self.env.step(action)

@@ -279,39 +279,29 @@ print(f"{'PUE Improvement (%)':<35} {'—':>12} {pue_improvement:>11.1f}%")
 print(f"\nAll 5 figures saved to writeup/")
 
 
-# Fig 5: CRAH Failure Perturbation (Stretch Goal) 
+# Fig 5: CRAH Failure Perturbation (Stretch Goal)
 print("Generating Fig 5 CRAH failure perturbation...")
 
-# Simulate CRAH 0 failing from t=300 to t=480 (05:00–08:00)
-# During failure: CRAH 0 fan drops to 0, supply temp rises to ambient
+# Simulate CRAH 0 failing from t=300 to t=480 (05:00-08:00)
+# During failure: CRAH 0 fan drops to minimum, supply temp rises to ambient
 FAIL_START, FAIL_END = 300, 480
 
-shape = (facility.N_STEPS, 4)
+shape = (facility.N_STEPS, facility.thermal.cfg.n_crahs)
+
+# Fixed setpoint case during failure
 T_supply_fail = np.full(shape, 7.0)
-fan_fail       = np.ones(shape)
-
+fan_fail      = np.ones(shape)
 # Injecting failure: CRAH 0 loses cooling capacity
-T_supply_fail[FAIL_START:FAIL_END, 0] = 35.0  # supply warms to hot aisle return
-fan_fail[FAIL_START:FAIL_END, 0]       = 0.3   # fans at minimum
+T_supply_fail[FAIL_START:FAIL_END, 0] = 18.0  # supply warms to hot aisle return
+fan_fail[FAIL_START:FAIL_END, 0]       = 0.6   # fans at minimum
+results_fail_fixed = facility.run(T_supply_fail, fan_fail)
 
-results_fail = facility.run(T_supply_fail, fan_fail)
-
-# Heuristic response to failure
+# Heuristic response to failure -- run episode first, then inject failure override
 heuristic_fail = ThermostatController()
-h_supply_fail = np.full(shape, 7.0)
-h_fan_fail    = np.ones(shape)
-h_supply_fail[FAIL_START:FAIL_END, 0] = 35.0
-h_fan_fail[FAIL_START:FAIL_END, 0]    = 0.3
-h_s, h_f = heuristic_fail.run_episode(
-    type('obj', (object,), {
-        'workload': facility.workload,
-        'N_STEPS': facility.N_STEPS,
-        'thermal': facility.thermal,
-    })()
-)
-# Override failed CRAH
-h_s[FAIL_START:FAIL_END, 0] = 35.0
-h_f[FAIL_START:FAIL_END, 0] = 0.3
+h_s, h_f = heuristic_fail.run_episode(facility)
+# Override CRAH 0 with failure during window
+h_s[FAIL_START:FAIL_END, 0] = 18.0
+h_f[FAIL_START:FAIL_END, 0] = 0.6
 results_fail_heuristic = facility.run(h_s, h_f)
 
 fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
@@ -327,7 +317,7 @@ ax.axvspan(FAIL_START/60, FAIL_END/60, alpha=0.15, color="red",
 ax.plot(t_hours, results_baseline["peak_outlet_c"],
         color="gray", linewidth=1, linestyle="--", alpha=0.6,
         label="No failure (baseline)")
-ax.plot(t_hours, results_fail["peak_outlet_c"],
+ax.plot(t_hours, results_fail_fixed["peak_outlet_c"],
         color="#F44336", linewidth=1.5,
         label="Fixed setpoint — failure")
 ax.plot(t_hours, results_fail_heuristic["peak_outlet_c"],
@@ -345,7 +335,7 @@ ax.axvspan(FAIL_START/60, FAIL_END/60, alpha=0.15, color="red")
 ax.plot(t_hours, results_baseline["pue"],
         color="gray", linewidth=1, linestyle="--", alpha=0.6,
         label="No failure (baseline)")
-ax.plot(t_hours, results_fail["pue"],
+ax.plot(t_hours, results_fail_fixed["pue"],
         color="#F44336", linewidth=1.5, label="Fixed setpoint — failure")
 ax.plot(t_hours, results_fail_heuristic["pue"],
         color="#2196F3", linewidth=1.5, label="Heuristic — failure response")
@@ -362,13 +352,13 @@ plt.savefig(OUT / "fig5_crah_failure.png", dpi=150, bbox_inches="tight")
 plt.close()
 
 # Print failure stats
-viol_fail = results_fail["n_violations"].sum()
-viol_fail_h = results_fail_heuristic["n_violations"].sum()
-peak_fail = results_fail["peak_outlet_c"].max()
-peak_fail_h = results_fail_heuristic["peak_outlet_c"].max()
+viol_fixed = results_fail_fixed["n_violations"].sum()
+viol_heur  = results_fail_heuristic["n_violations"].sum()
+peak_fixed = results_fail_fixed["peak_outlet_c"].max()
+peak_heur  = results_fail_heuristic["peak_outlet_c"].max()
 print(f"\n=== CRAH Failure Results ===")
 print(f"{'Metric':<35} {'Fixed':>10} {'Heuristic':>10}")
 print("-" * 56)
-print(f"{'Thermal violations':<35} {viol_fail:>10} {viol_fail_h:>10}")
-print(f"{'Peak outlet temp (°C)':<35} {peak_fail:>10.2f} {peak_fail_h:>10.2f}")
+print(f"{'Thermal violations':<35} {viol_fixed:>10} {viol_heur:>10}")
+print(f"{'Peak outlet temp (°C)':<35} {peak_fixed:>10.2f} {peak_heur:>10.2f}")
 print("  Saved: writeup/fig5_crah_failure.png")
